@@ -22,19 +22,24 @@ knitr::opts_chunk$set(echo = TRUE)
        Pros - R, not extremely difficult
        Cons - positive/negative only informaiton
     d) creating a dictionary ourselves based on entire corpus?
-    e) probably should talk to Chris and/or Tom/Danielle
+    e) doing a text net to find central users and get their sentiment score?
+    f) probably should talk to Chris and/or Tom/Danielle
     
 2. create dictionaries of conversion narrative terms
     a) previous lit?
     b) just using a few words and then tf-idf the "archetypical" ones that come up?
 
 3. identify conversion narratives in subreddits
+    a) topic model of these
+    b) differences by party (specifically references to past self) or gender
 
 4. Identify people who interacted with conversion narratives (commented, posted themselves?)
 
 5. See if those people had a change in behavior (directly?) following first interaction with cn:
     a) sentiment (more/less positive and or liberal/conservative and or extreme)
     b) started posting/commenting more in more extreme subreddits (why scoring of subreddits is an especially important decision)
+    
+6. Try to classify race, gender, age, etc. on users from text as well?
 
 ###Questions
 1. What to do about missing data - e.g. deleted posts and people who quit reddit?
