@@ -1,0 +1,91 @@
+---
+title: "Data"
+author: "Emily Maloney"
+date: "February 10, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Playing around with learning how to download data from the reddit stores on BigQuery. All of these worked for The Donald subreddit, which is encouraging. Probably will need to figure out a data storage solution because this is going to be a lot of data. 
+
+###Libraries
+```{r}
+library(tidyverse)
+library(bigrquery)
+library(tidyr)
+```
+
+###Posts
+Using standard SQL to download author, date, url, title, text, id, number of comments, ups, downs, and overall score from The Donald subreddit. Not trying to get entire history as of now because I still need to figure out the billing thing/rate limits of BigQuery. 
+
+```{r}
+#big query project name
+project <- 'conversion-narratives'
+
+#standardSQL
+sql <- "SELECT
+          author,
+          created_utc,
+          url,
+          title,
+          selftext,
+          id,
+          numcomments,
+          ups,
+          downs,
+          score
+        FROM
+          `fh-bigquery.reddit_posts.201*`
+        WHERE
+          subreddit = 'The_Donald'
+" 
+
+#get post data
+df_reddit_TD <- query_exec(sql, project = project, use_legacy_sql = FALSE)
+```
+
+###Comments
+Getting the author, text, score, ups, downs, controversiality, and the parent id (should match with an id from the posts in the above dataset) for The Donald subreddit. Again, not trying to 
+```{r}
+#standardSQL
+sql <- "SELECT author, 
+               body, 
+               name, 
+               score,
+               controversiality,
+               ups,
+               downs,
+               parentid
+        FROM `fh-bigquery.reddit_comments.201*` 
+        WHERE subreddit = 'The_Donald'
+        "
+
+df_reddit_TD_comm <- query_exec(sql, project = project, use_legacy_sql = FALSE)
+```
+
+```{r}
+#standardSQL
+sql <- "
+        SELECT author,
+               body, 
+               name, 
+               score,
+               controversiality,
+               ups,
+               downs,
+               subreddit
+        FROM `fh-bigquery.reddit_comments.201*`
+        WHERE author IN (
+          SELECT author FROM `fh-bigquery.reddit_comments.201*`
+          WHERE subreddit = 'The_Donald'
+          GROUP BY 1)
+        "
+
+author_comm <- query_exec(sql, project = project, use_legacy_sql = FALSE, 
+                          destination_table = "conversion-narratives:T_D_Posts.T_D_Comments")
+
+```
+

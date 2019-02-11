@@ -1,0 +1,91 @@
+---
+title: "Practice Sentiment analysis"
+author: "Emily Maloney"
+date: "February 10, 2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Trying out some methods for sentiment analysis of subreddits.
+
+###Libraries
+```{r}
+library(tidyverse)
+library(bigrquery)
+library(tidyr)
+library(sentimentr)
+library(magrittr)
+```
+
+###Data
+just getting comment histories of two subreddits: conservative and The Donald
+```{r}
+#set project name
+project <- 'conversion-narratives'
+
+#standardSQL
+sql <- "SELECT
+          author,
+          created_utc,
+          url,
+          title,
+          selftext,
+          id,
+          num_comments,
+          ups,
+          downs,
+          score
+        FROM
+          `fh-bigquery.reddit_posts.201*`
+        WHERE
+          subreddit = 'The_Donald'
+" 
+
+#get post data
+df_reddit_TD <- query_exec(sql, project = project, use_legacy_sql = FALSE)
+
+#standardSQL
+sql <- "SELECT
+          author,
+          created_utc,
+          url,
+          title,
+          selftext,
+          id,
+          num_comments,
+          ups,
+          downs,
+          score
+        FROM
+          `fh-bigquery.reddit_posts.201*`
+        WHERE
+          subreddit = 'Conservative'
+" 
+
+#get post data
+df_reddit_cons <- query_exec(sql, project = project, use_legacy_sql = FALSE)
+
+```
+
+```{r}
+df_TD_sent <- df_reddit_TD %>% 
+              mutate(post_split = get_sentences(title)) %$% 
+              sentiment_by(post_split)
+
+df_TD_sent %>% summarise(mean = mean(ave_sentiment))  
+
+df_C_sent <- df_reddit_cons %>% 
+              mutate(post_split = get_sentences(title)) %$% 
+              sentiment_by(post_split)
+
+df_C_sent %>% summarise(mean = mean(ave_sentiment)) 
+
+plot(uncombine(df_TD_sent))
+plot(uncombine(df_C_sent))
+```
+
