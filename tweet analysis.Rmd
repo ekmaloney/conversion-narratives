@@ -1,0 +1,117 @@
+---
+title: "Tweet Analysis"
+author: "Emily Maloney"
+date: "February 22, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+#libraries
+library(tidyverse)
+library(rtweet)
+library(foreign)
+library(tidytext)
+library(SnowballC)
+library(textnets)
+library(knitr)
+```
+
+```{r}
+#data
+hash_tweets <- readRDS("walkaway_tweets.rds")
+user_tweets <- readRDS("user_tweets.rds")
+
+data("stop_words")
+```
+
+```{r}
+walkaway_tidy <-  hash_tweets %>%
+                  select(created_at,text) %>%
+                  unnest_tokens("word", text)
+
+user_tidy <- user_tweets %>% 
+             select(created_at, text) %>% 
+             unnest_tokens("word", text)
+```
+
+
+```{r}
+#preprocessing
+walkaway_tidy <- walkaway_tidy %>% anti_join(stop_words) #remove stop words
+walkaway_tidy <- walkaway_tidy[-grep("https|t.co|amp|rt", walkaway_tidy$word),]
+walkaway_tidy <- walkaway_tidy[-grep("\\b\\d+\\b", walkaway_tidy$word),] #get rid of punctuation
+walkaway_tidy$word <- gsub("\\s+", "", walkaway_tidy$word) #remove white spaces
+walkaway_tidy <- walkaway_tidy %>% 
+                 mutate_at("word", funs(wordStem((.), language = "en"))) #stemming
+walkaway_tidy$date <- as.Date(walkaway_tidy$created_at, format = "%Y-%m-%d %x")
+
+user_tidy <- user_tidy %>% anti_join(stop_words)
+user_tidy <- user_tidy[-grep("\\b\\d+\\b", user_tidy$word),]
+user_tidy$word <- gsub("\\s+", "", user_tidy$word) 
+user_tidy <- user_tidy %>% 
+                 mutate_at("word", funs(wordStem((.), language = "en")))
+user_tidy <- user_tidy[-grep("https|t.co|amp|rt", user_tidy$word),]
+user_tidy$date <- as.Date(user_tidy$created_at, format = "%Y-%m-%d %x")
+```
+```{r}
+#top words from walkaway
+walkaway_top_words<-
+   walkaway_tidy %>%
+        count(word) %>%
+        arrange(desc(n)) %>% 
+        slice(1:20)
+
+ggplot(walkaway_top_words, aes(x=word, y=n, fill=word))+
+  geom_bar(stat="identity")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ylab("Number of Times Word Appears in #Walkaway")+
+  xlab("")+
+  guides(fill=FALSE)
+
+#top words from user tweets
+user_top_words<-
+   user_tidy %>%
+        count(word) %>%
+        arrange(desc(n)) %>% 
+        slice(1:20)
+
+ggplot(user_top_words, aes(x=word, y=n, fill=word))+
+  geom_bar(stat="identity")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Corpus of User's Tweets") +
+  ylab("Number of Times Word Appears")+
+  xlab("")+
+  guides(fill=FALSE)
+```
+
+
+```{r}
+#TEXT NETS
+prepped_walkaway <- PrepText(hash_tweets, groupvar = "screen_name", textvar = "text", node_type = "words", tokenizer = "tweets", pos = "nouns", remove_stop_words = TRUE, compound_nouns = TRUE)
+
+#make network
+walkaway_text_network <- CreateTextnet(prepped_walkaway)
+
+#get centrality & community detection
+walkaway_centrality <- TextCentrality(walkaway_text_network)
+walkaway_communities <- TextCommunities(walkaway_text_network)
+
+#top centrality scores
+top_cent_close <- row.names(walkaway_centrality[rank(-walkaway_centrality$closness_centrality) <=
+                                                  10,])
+top_cent_bw <- row.names(walkaway_centrality[rank(-walkaway_centrality$betweenness_centrality) <=
+                                               10,])
+
+#print
+kable(top_cent_close, format = "pandoc", caption = "Closeness Centrality")
+kable(top_cent_bw, format = "pandoc", caption = "Betweenness Centrality")
+```
+
+
