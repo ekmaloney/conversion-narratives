@@ -1,0 +1,177 @@
+---
+title: "Messing around with the tweets"
+author: "Nicolas Restrepo"
+date: "February 18, 2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Messing around with the tweets
+
+```{r}
+
+library(tidyverse)
+library(rebus)
+library(stringi)
+library(lubridate)
+library(tidytext)
+
+theme_set(theme_light())
+```
+
+```{r}
+
+# Load the data 
+
+tweets <- readRDS("~/R_Documents/conversion-narratives/walkaway_tweets.rds")
+```
+
+I begin by looking at when the tweets have been posted 
+
+```{r}
+
+# Date of tweets 
+
+tweets %>% 
+  count(date = as.Date(created_at)) %>% 
+  ggplot(aes(x = date, y = n)) + 
+  geom_line() + 
+  expand_limits(y = 0 )
+```
+
+Users with the most tweets? 
+
+```{r}
+
+tweets %>%  
+  count(screen_name, sort = TRUE ) %>% 
+  head(12) %>% 
+  mutate(screen_name = reorder(screen_name, n)) %>% 
+  ggplot(aes(screen_name, n)) + 
+  geom_col() + 
+  coord_flip()
+
+
+```
+
+Maybe worth checking the tweets by these users. 
+
+What about retweets? 
+
+```{r}
+
+tweets %>% 
+  arrange(desc(retweet_count)) %>%  
+  select(screen_name, text, retweet_count) %>% 
+  view()
+```
+
+So this is interesting because most of the most "impactful" tweets haven't been by the people who have used the hashtag the most. 
+
+What if we take both things into account? 
+
+```{r}
+
+tweets %>% 
+  group_by(screen_name) %>% 
+  summarize(tweets = n(), 
+            retweets = sum(retweet_count)) %>% 
+  arrange(desc(tweets)) %>% 
+  arrange(desc(retweets))
+```
+
+Wildly different picture. It seems the top three users here are quite impactful. 
+
+What about fave / retween ratio 
+
+```{r}
+
+tweets %>% 
+  select(screen_name, text, retweet_count, favorite_count) %>%  
+  mutate(ratio = (favorite_count + 1) / (retweet_count + 1)) %>%  
+  arrange(desc(ratio))
+
+```
+
+Worth looking into these top tweets. Are they particularly problematic and/or offensive? 
+
+I am going to begin to think about the content of the tweets. 
+
+```{r}
+
+# fewer columns 
+
+tweet_words <- tweets %>% 
+  select(screen_name, text, retweet_count, favorite_count, created_at) %>%  
+  unnest_tokens(word, text, token = "tweets") %>%  # this makes sure keep hashtags and @s 
+  anti_join(stop_words, by = "word")  %>% # super handy dataset from the tidytext package 
+  filter(word != "#walkaway")
+
+# Plot most common words 
+
+tweet_words %>%  
+  count(word, sort = TRUE ) %>% 
+  head(16) %>% 
+  mutate(word = reorder(word, n)) %>% 
+  ggplot(aes(word, n)) + 
+  geom_col() + 
+  coord_flip()
+
+```
+
+This just seems like another propaganda campaign by rightwing bots
+
+We could check at which words had an impact by looking whether they were retweeted or liked
+
+```{r}
+
+# Distribution of retweets 
+
+tweet_words %>%  
+  ggplot(aes(retweet_count + 1)) + 
+  geom_histogram() + 
+  scale_x_log10()
+
+# Because it's so skewed we cannot use average or median 
+
+tweet_words %>%  
+  group_by(word) %>% 
+  summarise(n = n(), 
+            avg_retweets = exp(mean(log(retweet_count + 1))) - 1, 
+            avg_favorites = exp(mean(log(favorite_count + 1))) -1) %>% 
+  filter(n >= 30) %>%  
+  arrange(desc(avg_retweets)) %>%  
+  head(n = 20)
+
+```
+
+Again, we mostly see hashtags up there on the list. @realpersonpltcs is quite impactful. 
+
+We can create a tf_idf for each day to see how they have changed 
+
+```{r}
+
+# create specific day 
+
+tweet_words <- tweet_words %>% 
+  mutate( day = round_date(created_at, "day")) 
+
+# Which words are more specific to particular days 
+
+tweet_words %>% 
+  count(word, day) %>% 
+  bind_tf_idf(word, day, n) %>% 
+  arrange(desc(tf_idf)) %>% 
+  group_by(day) %>% 
+  top_n(1, tf_idf) %>% 
+  arrange(day) %>% 
+  print()
+
+# This is not suuuper helpful 
+
+# Although it is interesting to see that most of them are handles 
+```
+
