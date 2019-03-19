@@ -1,0 +1,179 @@
+---
+title: "Narratives"
+author: "Emily Maloney"
+date: "March 19, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(textnets)
+library(tidytext)
+library(readxl)
+library(stm)
+library(topicmodels)
+```
+
+Load in data
+```{r}
+d <- read_xlsx("walkaway_narratives.xlsx")
+d <- d %>% mutate(Race = ifelse(Race == "White", "White", "Non-White"))
+
+#get into tidy format
+tidy <- d %>%
+    select(Title, Text) %>%
+    unnest_tokens("word", Text)
+
+#preprocessing 
+ data("stop_words")
+    tidy <-tidy %>%
+      anti_join(stop_words)
+```
+
+Basic stuff
+```{r}
+tidy_top <- tidy %>% count(word) %>% arrange(desc(n)) %>% slice(1:20)
+
+#create factor variable to sort by frequency
+tidy_top$word <- factor(tidy_top$word, levels = tidy_top$word[order(tidy_top$n,decreasing=TRUE)])
+
+
+ggplot(tidy_top, aes(x=word, y=n, fill=word))+
+  geom_bar(stat="identity")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ylab("Number of Times Word Appears in Walkaway Narratives")+
+  xlab("")+
+  guides(fill=FALSE)
+```
+
+Trying out structural topic modeling:
+```{r}
+processed <- textProcessor(d$Text, metadata = d)
+out <- prepDocuments(processed$documents, processed$vocab, processed$meta)
+
+docs <- out$documents
+vocab <- out$vocab
+meta <-out$meta
+meta <- meta %>% mutate(Gender = as.factor(Gender),
+                        Race = as.factor(Race),
+                        Age = as.factor(Age))
+
+findingk <- searchK(out$documents, out$vocab, K = c(2:6),
+ prevalence =~ Gender + Age + Race, data = out$meta, verbose=FALSE)
+
+plot(findingk)
+
+
+First_STM <- stm(documents = out$documents, vocab = out$vocab,
+              K = 4, prevalence =~ Gender + Age + Race,
+              max.em.its = 75, data = out$meta,
+              init.type = "Spectral", verbose = FALSE)
+
+plot(First_STM)
+
+```
+
+```{r}
+#anti-left?
+findThoughts(First_STM, texts = d$Text,
+     n = 2, topics = 1)
+```
+
+```{r}
+findThoughts(First_STM, texts = d$Text,
+     n = 2, topics = 2)
+```
+
+```{r}
+#most like typical conversion narrative? 
+findThoughts(First_STM, texts = d$Text,
+     n = 2, topics = 3)
+```
+
+```{r}
+#positive attitude 
+findThoughts(First_STM, texts = d$Text,
+     n = 2, topics = 4)
+```
+
+
+```{r}
+predict_topics<-estimateEffect(formula = 1:4 ~ Gender + Race + Age, stmobj = First_STM, metadata = out$meta, uncertainty = "Global")
+
+plot(predict_topics, covariate = "Gender", topics = 1:4,
+ model = First_STM, method = "difference",
+ cov.value1 = "Female", cov.value2 = "Male",
+ xlab = "More Male ... More Female",
+ main = "Effect of Female vs. Male",labeltype = "custom",
+ custom.labels = c('Topic 1', 'Topic 2','Topic 3', 'Topic 4'))
+
+plot(predict_topics, covariate = "Race", topics = 1:4,
+ model = First_STM, method = "difference",
+ cov.value1 = "White", cov.value2 = "Non-White",
+ xlab = "More Non-White ... More White",
+ main = "Effect of White vs. Non-White",labeltype = "custom",
+ custom.labels = c('Topic 1', 'Topic 2','Topic 3', 'Topic 4'))
+
+plot(predict_topics, covariate = "Age", topics = 1:4,
+ model = First_STM, method = "difference",
+ cov.value1 = "Middle", cov.value2 = "Young",
+ xlab = "More Young ... More Middle-Aged",
+ main = "Effect of Young vs. Middle-Aged",labeltype = "custom",
+ custom.labels = c('Topic 1', 'Topic 2','Topic 3', 'Topic 4'))
+
+plot(predict_topics, covariate = "Age", topics = 1:4,
+ model = First_STM, method = "difference",
+ cov.value1 = "Middle", cov.value2 = "Old",
+ xlab = "More Old ... More Middle-Aged",
+ main = "Effect of Old vs. Middle-Aged",labeltype = "custom",
+ custom.labels = c('Topic 1', 'Topic 2','Topic 3', 'Topic 4'))
+```
+
+```{r}
+topics <- tidy(First_STM, matrix = "beta")
+
+top_terms <- 
+  topics %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+
+top_terms %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+```
+
+TextNets
+```{r}
+#with narratives as nodes
+prepped_walk <- PrepText(d, groupvar = "Title", textvar = "Text", node_type = "groups", tokenizer = "words", pos = "nouns", remove_stop_words = TRUE, compound_nouns = TRUE)
+
+walk_network <- CreateTextnet(prepped_walk)
+VisTextNet(walk_network, label_degree_cut = 0)
+
+#with words as nodes
+prepped_walk2 <- PrepText(d, groupvar = "Title", textvar = "Text", node_type = "words", tokenizer = "words", pos = "nouns", remove_stop_words = TRUE, compound_nouns = TRUE)
+
+walk_network2 <- CreateTextnet(prepped_walk2)
+
+walk_communities <- TextCommunities(walk_network2)
+walk_communities %>% group_by(modularity_class) %>% slice(1:10)
+
+text_centrality <- TextCentrality(walk_network2)
+
+
+head(text_centrality)
+
+```
+
