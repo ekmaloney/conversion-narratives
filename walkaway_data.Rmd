@@ -1,0 +1,22 @@
+---
+title: "Cleaning Walkaway Subreddit Data"
+author: "Emily Maloney"
+date: "January 15, 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(jsonlite)
+library(tidyverse)
+
+walkaway_subm <- jsonlite::stream_in(file("C:/Users/emily/walkawaysubmission.json"),
+                                     flatten = TRUE)
+
+walkaway_comm <- jsonlite::stream_in(file("C:/Users/emily/walkawaycomment.json"),
+                                     flatten = TRUE)
+```
+
