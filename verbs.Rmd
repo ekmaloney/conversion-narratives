@@ -1,0 +1,116 @@
+---
+title: "Verbs"
+author: "Emily Maloney"
+date: "1/23/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Verbs in the submissions
+
+```{r}
+verb_df <- read.csv("all_verbs_new.csv")
+
+#most common verbs
+verb_freq <- verb_df %>% group_by(verbs) %>% summarise(count = n()) %>% arrange(desc(count))
+
+verb_freq %>% slice(1:25)
+```
+
+```{r}
+verb_df <- verb_df %>% 
+           mutate(simple_tense = case_when(tense == "VBD" ~ "past",
+                                           tense == "VBN" ~ "past",
+                                           tense == "VBG" ~ "present",
+                                           tense == "VBP" ~ "present",
+                                           tense == "VBZ" ~ "present",
+                                           tense == "VB" ~ "infinitive"
+                                           ))
+
+
+tense_plot <- verb_df %>% 
+              group_by(simple_tense) %>% 
+              summarise(count = n()) %>% 
+              ungroup() %>% 
+              mutate(prop = count / sum(count))
+
+ggplot(tense_plot, mapping = aes(x = simple_tense, y = prop)) + geom_histogram(stat = "identity")
+```
+
+```{r}
+bypost <- verb_df %>% 
+          filter(!is.na(simple_tense)) %>% 
+          group_by(postid, simple_tense) %>% 
+          summarise(count = n()) %>% 
+          ungroup() %>% 
+          group_by(postid) %>% 
+          mutate(prop = count / sum(count))
+
+ggplot(bypost, mapping = aes(x = prop)) + geom_histogram(binwidth = 0.20) + facet_wrap(~simple_tense)
+```
+
+```{r}
+library(tidytext)
+
+verb_sentiment <- verb_df %>% mutate(word = verbs) %>% 
+                  inner_join(get_sentiments("afinn")) %>% 
+                  select(-c(postid, X)) %>% 
+                  distinct()
+
+ggplot(verb_sentiment, mapping = (aes(x = score))) + 
+       geom_bar() + 
+       facet_wrap(~simple_tense) + 
+       theme_minimal() + 
+       labs(title = "Verb Sentiment by Verb Tense",
+            x = "AFINN sentiment score")
+```
+
+```{r}
+np <- read_csv("noun_phrases.csv") %>% mutate(post_id = postid) %>% select(noun_phrase, postid)
+
+np <- np %>% mutate(me_subj = ifelse("I" == noun_phrase, 1, 0),
+                    left_subj = ifelse(!is.na(str_extract(noun_phrase, "left")), 1, 0))
+
+np_bypost <- np %>% 
+             group_by(postid) %>% 
+             mutate(me_count = sum(me_subj > 0),
+                    left_count = sum(left_subj > 0)) %>% 
+             ungroup() %>%
+             group_by(postid) %>% 
+             mutate(totalphrase = n(),
+                    percme = me_count / totalphrase,
+                    percleft = left_count / totalphrase) %>% 
+             select(postid, percme, percleft) %>% 
+             slice(1)
+            
+nvbypost <- left_join(bypost, np_bypost)
+
+me_plot <- ggplot(data = nvbypost, mapping = aes(x = prop, y = percme)) + 
+      geom_point() + 
+      facet_wrap(~simple_tense) + 
+      geom_smooth(method = "lm") + 
+      labs(x = "proportion of verbs",
+           y = "percent of noun phrases that are 'I",
+           title = "Tense and Self Subjects in Conversion Narratives")
+
+ggsave("EM_FOTD.jpg", me_plot)
+```
+
+```{r}
+
+verb_sentiment_new <- verb_df %>% mutate(word = verbs) %>% 
+                  inner_join(get_sentiments("afinn")) %>% 
+                  group_by(postid, simple_tense) %>% 
+                  summarise(avgverbsent = mean(score))
+
+sent_np <- left_join(verb_sentiment_new, np_bypost)
+
+ggplot(data = sent_np, mapping = aes(x = avgverbsent, y = percme)) + 
+      geom_point() + 
+      facet_wrap(~simple_tense) +
+      geom_smooth(method = "lm")
+```
+

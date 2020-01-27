@@ -1,0 +1,57 @@
+---
+title: "Walkaway Subreddit"
+author: "Emily Maloney"
+date: "1/16/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Walkaway Subreddit 
+```{r}
+library(tidyverse)
+library(stringr)
+library(naniar)
+
+#read in submissions and comments
+submissions <- readRDS("walkaway_subm.RDS")
+comments <- readRDS("walkaway_comm.RDS")
+
+narr_submissions <- submissions %>% 
+                    filter(selftext != "") %>% 
+                    mutate(l = str_length(selftext))
+
+
+long_narr <- narr_submissions %>% arrange(desc(l)) %>% slice(1:10) %>% select(selftext)
+
+narr_save <- narr_submissions %>% 
+            select(author, created_utc, id, num_comments, score, selftext, subreddit_subscribers, title)
+
+write.csv(narr_save, "narrative_submissions.csv")
+
+
+```
+
+```{r}
+#looking at author use patterns
+submissions_auth <- submissions %>% 
+                    filter(author != "[deleted]") %>% 
+                    group_by(author) %>% 
+                    summarise(num_sub = n())
+
+comments_auth <- comments  %>% 
+                    filter(author != "[deleted]") %>% 
+                    group_by(author) %>% 
+                    summarise(num_comm = n())
+
+total_auth <- full_join(submissions_auth, comments_auth, by = "author")
+
+total_auth <- total_auth %>% 
+              mutate(num_sub = replace_na(num_sub, 0),
+                     num_comm = replace_na(num_comm, 0))
+
+ggplot(data = total_auth, mapping = aes(x = num_sub, y = num_comm)) + geom_point()
+```
+
