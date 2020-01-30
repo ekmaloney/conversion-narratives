@@ -21,15 +21,17 @@ comments <- readRDS("walkaway_comm.RDS")
 
 narr_submissions <- submissions %>% 
                     filter(selftext != "") %>% 
+                    filter(selftext != "[removed]") %>% 
                     mutate(l = str_length(selftext))
 
 
-long_narr <- narr_submissions %>% arrange(desc(l)) %>% slice(1:10) %>% select(selftext)
+long_narr <- narr_submissions %>% arrange(desc(l)) %>% slice(1:10) %>% select(selftext, author)
 
 narr_save <- narr_submissions %>% 
-            select(author, created_utc, id, num_comments, score, selftext, subreddit_subscribers, title)
+             filter(author != "p00bix") %>% 
+             select(author, created_utc, id, num_comments, score, selftext, subreddit_subscribers, title)
 
-write.csv(narr_save, "narrative_submissions.csv")
+saveRDS(narr_save, "narrative_submissions.RDS")
 
 
 ```
