@@ -42,5 +42,8 @@ get_all_stats <- function(id) {
 walkaway_stats <- purrr::map_df(.x = video_ids,
                                 .f = get_all_stats)
 
-walkaway_caption_tracks <- purrr::map_df(.x = walkaway_stats$id[1],
+walkaway_caption_tracks <- purrr::map_df(.x = walkaway_stats$id,
                                          .f = get_caption_tracks)
+
+saveRDS(walkaway_raw,"walkawayraw_yt.RDS")
+saveRDS(walkaway_stats,"walkawaystats_yt.RDS")

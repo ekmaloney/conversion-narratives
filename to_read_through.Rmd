@@ -1,0 +1,47 @@
+---
+title: "reading through narratives"
+author: "Emily Maloney"
+date: "1/31/2020"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(naniar)
+library(knitr)
+
+#read in submissions and comments
+submissions <- readRDS("walkaway_subm.RDS")
+comments <- readRDS("walkaway_comm.RDS")
+
+narr_submissions <- submissions %>% 
+                    filter(selftext != "") %>% 
+                    filter(selftext != "[removed]") %>% 
+                    mutate(l = str_length(selftext))
+
+
+long_narr <- narr_submissions %>% arrange(desc(l)) %>% slice(1:10) %>% select(selftext, author)
+
+narr_save <- narr_submissions %>% 
+             filter(author != "p00bix") %>% 
+             filter(author != "JdaVoCap") %>% 
+             select(author, id, title, selftext)
+
+narr_save %>% mutate(char = nchar(selftext)) %>% filter(char > 32767)
+#JdaVoCap
+
+narr_save
+
+library(writexl)
+write_xlsx(narr_save, "narr.xlsx")
+
+
+```
+
